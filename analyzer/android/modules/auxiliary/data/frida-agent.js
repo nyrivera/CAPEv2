@@ -1,5 +1,5 @@
 📦
-446650 /agent-src.js
+446788 /agent-src.js
 ✄
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
@@ -13705,9 +13705,13 @@ frida_java_bridge_default.perform(function() {
   });
   safeHook("File.exists", hookInterestingFileExists);
   setTimeout(() => {
-    frida_java_bridge_default.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+    frida_java_bridge_default.perform(() => {
+      frida_java_bridge_default.scheduleOnMainThread(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+    });
   }, 2e3);
   setTimeout(() => {
-    frida_java_bridge_default.perform(() => safeHook("FAB.performClick", clickFirstFab));
+    frida_java_bridge_default.perform(() => {
+      frida_java_bridge_default.scheduleOnMainThread(() => safeHook("FAB.performClick", clickFirstFab));
+    });
   }, 5e3);
 });

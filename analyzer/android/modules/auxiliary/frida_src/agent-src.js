@@ -226,12 +226,17 @@ Java.perform(function () {
   safeHook("File.exists", hookInterestingFileExists);
 
   setTimeout(() => {
-    Java.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+    Java.perform(() => {
+      Java.scheduleOnMainThread(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+    });
   }, 2000);
 
   // Sample UIs (RootBeer, many others) only run payload work on a FAB
   // click. performClick is generic and does not hard-code an APK.
+  // Java.choose from a worker thread often sees zero instances on ART.
   setTimeout(() => {
-    Java.perform(() => safeHook("FAB.performClick", clickFirstFab));
+    Java.perform(() => {
+      Java.scheduleOnMainThread(() => safeHook("FAB.performClick", clickFirstFab));
+    });
   }, 5000);
 });

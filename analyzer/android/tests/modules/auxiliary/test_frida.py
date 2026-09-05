@@ -183,10 +183,11 @@ class TestFridaNudge(FridaTestCase):
         self.assertEqual(aux.nudge_at, 103.0)
         self.assertFalse(aux.nudged)
 
+    @patch("modules.auxiliary.frida.subprocess.check_output", return_value=b"Physical size: 1280x800\n")
     @patch("modules.auxiliary.frida.subprocess.run")
     @patch("modules.auxiliary.frida.time.sleep")
     @patch("modules.auxiliary.frida.time.time", return_value=200.0)
-    def test_get_pids_nudges_after_delay(self, mock_time, mock_sleep, mock_run):
+    def test_get_pids_nudges_after_delay(self, mock_time, mock_sleep, mock_run, mock_size):
         aux = self.make_aux()
         aux.available = True
         aux.injection_attempted = True
@@ -194,13 +195,15 @@ class TestFridaNudge(FridaTestCase):
         aux.nudge_at = 150.0
         aux.get_pids()
         self.assertTrue(aux.nudged)
-        self.assertEqual(mock_run.call_count, 2)
+        self.assertGreaterEqual(mock_run.call_count, 3)
         home = mock_run.call_args_list[0].args[0]
         launch = mock_run.call_args_list[1].args[0]
+        tap = mock_run.call_args_list[2].args[0]
         self.assertEqual(home[:2], ["sh", "-c"])
         self.assertIn("KEYCODE_HOME", home[2])
         self.assertIn("com.example.app", launch)
         self.assertIn("am start", launch[2])
+        self.assertIn("input tap", tap[2])
 
     @patch("modules.auxiliary.frida.subprocess.run")
     @patch("modules.auxiliary.frida.time.time", return_value=100.0)

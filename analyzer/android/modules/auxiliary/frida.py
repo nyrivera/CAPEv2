@@ -141,9 +141,39 @@ class Frida(Auxiliary):
                 timeout=10,
                 check=False,
             )
+            time.sleep(2)
+            self._tap_fab_corner()
             log.info("Frida resume nudge sent for %s", package_name)
         except Exception as e:
             log.warning("Frida resume nudge failed: %s", e)
+
+    def _tap_fab_corner(self):
+        """Tap the usual Material FAB corner (bottom-end) after wm size.
+
+        Java.choose can miss live views on this ART. A coordinate tap is a
+        coarse fallback so click-to-run sample UIs still execute.
+        """
+        try:
+            out = subprocess.check_output(["sh", "-c", "wm size"], timeout=5, stderr=subprocess.DEVNULL).decode(
+                errors="replace"
+            )
+        except Exception as e:
+            log.warning("wm size failed: %s", e)
+            return
+        width = height = None
+        for token in out.replace("x", " ").split():
+            if token.isdigit():
+                if width is None:
+                    width = int(token)
+                else:
+                    height = int(token)
+        if not width or not height:
+            log.warning("could not parse wm size: %s", out.strip())
+            return
+        x = max(int(width * 0.91), 1)
+        y = max(int(height * 0.91), 1)
+        subprocess.run(["sh", "-c", 'input tap "$1" "$2"', "sh", str(x), str(y)], timeout=5, check=False)
+        log.info("Frida FAB-corner tap at %sx%s -> %s,%s", width, height, x, y)
 
     def stop(self):
         if not self.proc:
