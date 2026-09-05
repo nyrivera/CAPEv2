@@ -70,7 +70,7 @@ class Apk(Package):
         # Reinstall of an already-present package (same sample submitted
         # twice, or a pre-seeded system app) won't show up as "new" -- fall
         # back to parsing it straight out of the APK manifest.
-        guessed = self._package_name_from_aapt()
+        guessed = self.options.get("apk_package") or self._package_name_from_aapt()
         if guessed:
             return guessed
 

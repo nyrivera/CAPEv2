@@ -62,6 +62,16 @@ class TestApkInstall(unittest.TestCase):
         with self.assertRaises(Exception):
             pkg._install()
 
+    @patch.object(Apk, "_package_name_from_aapt", return_value=None)
+    @patch("modules.packages.apk.subprocess.check_output")
+    @patch("modules.packages.apk.subprocess.run")
+    def test_install_reinstall_uses_apk_package_option(self, mock_run, mock_check_output, mock_aapt):
+        mock_run.return_value = Mock(stdout=b"Success\n")
+        mock_check_output.return_value = b"package:com.existing.app\n"
+        pkg = make_pkg(options={"apk_package": "com.scottyab.rootbeer.sample.debug"})
+        self.assertEqual(pkg._install(), "com.scottyab.rootbeer.sample.debug")
+        mock_aapt.assert_not_called()
+
 
 class TestApkLaunch(unittest.TestCase):
     @patch("modules.packages.apk.subprocess.run")
