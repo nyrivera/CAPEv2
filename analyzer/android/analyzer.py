@@ -218,14 +218,17 @@ class Analyzer:
                 break
 
             try:
+                # Auxiliaries (Frida) use get_pids() as their attach tick.
+                # That must run even when enforce_timeout disables pid_check,
+                # otherwise instrumentation never starts.
+                for aux in aux_avail:
+                    add_pids(aux.get_pids())
+
                 if pid_check:
                     for pid in list(PROCESS_LIST):
                         if not Process(pid=pid).is_alive():
                             log.info("Process with pid %s has terminated", pid)
                             PROCESS_LIST.remove(pid)
-
-                    for aux in aux_avail:
-                        add_pids(aux.get_pids())
 
                     if not PROCESS_LIST:
                         log.info("Process list is empty, terminating analysis")
