@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 INJECT_BIN = "/data/local/tmp/frida-inject"
 AGENT_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "frida-agent.js")
 EVENT_LOG_PATH = os.path.join(os.environ.get("TMPDIR", "/data/local/tmp"), "frida_events.log")
+RESUME_NUDGE_DELAY = 3
 
 # Set by the "apk" package (lib/core/packages.py -> modules/packages/apk.py)
 # once it has actually launched the sample and discovered its PID -- this
@@ -40,9 +41,8 @@ class Frida(Auxiliary):
 
     Mirrors analyzer/linux/modules/auxiliary/tracee.py: this produces a raw
     JSON-lines log uploaded to the host as a plain log file, parsed by a
-    separate host-side processing module into its own report key. It does
-    NOT feed modules/processing/behavior.py or any signature -- see the
-    design note in the PR this shipped with for why.
+    separate host-side processing module into results["frida"]. It does
+    NOT feed modules/processing/behavior.py or any signature.
 
     Deployment note: frida-inject is an ~110MB prebuilt binary (from
     https://github.com/frida/frida/releases, asset
@@ -58,8 +58,12 @@ class Frida(Auxiliary):
     failed analysis.
 
     No frida-server is used or required. frida-inject performs its own
-    injection without a running server -- see frida_src/agent-src.js and
-    the module docstring for how the compiled agent gets there.
+    injection without a running server.
+
+    Injection happens after Apk has already launched the sample, so the
+    first Activity.onResume has usually already returned. The agent
+    enumerates live Activity instances, and this auxiliary later nudges
+    the sample (HOME + launcher monkey) so a real onResume fires too.
     """
 
     priority = 0
@@ -70,6 +74,9 @@ class Frida(Auxiliary):
         self.proc = None
         self.injected_pid = None
         self.injection_attempted = False
+        self.nudge_at = None
+        self.nudge_package = None
+        self.nudged = False
 
     def start(self):
         if not (os.path.isfile(INJECT_BIN) and os.access(INJECT_BIN, os.X_OK)):
@@ -90,18 +97,45 @@ class Frida(Auxiliary):
         """
         if self.available and not self.injection_attempted and _target_pid:
             self._inject(_target_pid, _target_package)
+        if self.available and self.injection_attempted and not self.nudged and self.nudge_at and time.time() >= self.nudge_at:
+            self.nudged = True
+            self._nudge_resume(self.nudge_package)
         return []
 
     def _inject(self, pid, package_name):
         self.injection_attempted = True
         try:
-            command = ["sh", "-c", f'exec "$1" -p "$2" -s "$3" > "$4" 2>&1', "sh", INJECT_BIN, str(pid), AGENT_JS, EVENT_LOG_PATH]
+            command = ["sh", "-c", 'exec "$1" -p "$2" -s "$3" > "$4" 2>&1', "sh", INJECT_BIN, str(pid), AGENT_JS, EVENT_LOG_PATH]
             self.proc = subprocess.Popen(command)
             self.injected_pid = pid
+            self.nudge_package = package_name
+            self.nudge_at = time.time() + RESUME_NUDGE_DELAY
             log.info("Frida injected into pid %s (package %s)", pid, package_name)
         except Exception as e:
             log.warning("Failed to start frida-inject against pid %s: %s", pid, e)
             self.proc = None
+
+    def _nudge_resume(self, package_name):
+        """Force a second onResume after hooks are installed.
+
+        Apk launches the sample before notify_target(), so the first
+        onResume is gone by the time frida-inject attaches. HOME + a
+        launcher monkey is enough to make a real onResume fire without
+        rewriting the package.
+        """
+        if not package_name:
+            return
+        try:
+            subprocess.run(["input", "keyevent", "KEYCODE_HOME"], timeout=5, check=False)
+            time.sleep(1)
+            subprocess.run(
+                ["monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"],
+                timeout=10,
+                check=False,
+            )
+            log.info("Frida resume nudge sent for %s", package_name)
+        except Exception as e:
+            log.warning("Frida resume nudge failed: %s", e)
 
     def stop(self):
         if not self.proc:

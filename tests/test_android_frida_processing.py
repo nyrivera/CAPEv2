@@ -1,5 +1,4 @@
 import json
-import os
 
 from modules.processing.android_frida import AndroidFrida
 
@@ -50,4 +49,4 @@ class TestAndroidFrida:
     def test_key_name(self, tmp_path):
         processor = make_processor(tmp_path)
         processor.run()
-        assert processor.key == "android_frida"
+        assert processor.key == "frida"

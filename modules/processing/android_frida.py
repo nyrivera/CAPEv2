@@ -12,7 +12,7 @@ __version__ = "1.0.0"
 
 class AndroidFrida(Processing):
     """Parses the Android guest's Frida capture log (analyzer/android/modules/auxiliary/frida.py)
-    into a flat list of Java-hook events.
+    into a flat list of hook events under results["frida"].
 
     This is a sibling report section, not part of results["behavior"] --
     see modules/processing/tracee.py for the existing precedent of a
@@ -22,10 +22,9 @@ class AndroidFrida(Processing):
     """
 
     order = 2
-    os = "android"
 
     def run(self):
-        self.key = "android_frida"
+        self.key = "frida"
         logpath = os.path.join(self.analysis_path, "logs", "frida.log")
 
         if not os.path.exists(logpath):
@@ -40,7 +39,7 @@ class AndroidFrida(Processing):
                 try:
                     event = json.loads(line)
                 except ValueError:
-                    log.warning("Skipping malformed android_frida log line")
+                    log.warning("Skipping malformed frida log line")
                     continue
                 events.append(event)
 

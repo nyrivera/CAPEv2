@@ -170,3 +170,44 @@ class TestFridaUploadEvents(FridaTestCase):
         with patch("builtins.open", mock_open(read_data=json.dumps({"type": "log", "payload": "x"}) + "\n")):
             aux._upload_events()
         mock_append.assert_not_called()
+
+
+class TestFridaNudge(FridaTestCase):
+    @patch("modules.auxiliary.frida.time.time", return_value=100.0)
+    @patch("modules.auxiliary.frida.subprocess.Popen")
+    def test_inject_schedules_resume_nudge(self, mock_popen, mock_time):
+        aux = self.make_aux()
+        aux.available = True
+        aux._inject(1234, "com.example.app")
+        self.assertEqual(aux.nudge_package, "com.example.app")
+        self.assertEqual(aux.nudge_at, 103.0)
+        self.assertFalse(aux.nudged)
+
+    @patch("modules.auxiliary.frida.subprocess.run")
+    @patch("modules.auxiliary.frida.time.sleep")
+    @patch("modules.auxiliary.frida.time.time", return_value=200.0)
+    def test_get_pids_nudges_after_delay(self, mock_time, mock_sleep, mock_run):
+        aux = self.make_aux()
+        aux.available = True
+        aux.injection_attempted = True
+        aux.nudge_package = "com.example.app"
+        aux.nudge_at = 150.0
+        aux.get_pids()
+        self.assertTrue(aux.nudged)
+        self.assertEqual(mock_run.call_count, 2)
+        home = mock_run.call_args_list[0].args[0]
+        monkey = mock_run.call_args_list[1].args[0]
+        self.assertEqual(home[:2], ["input", "keyevent"])
+        self.assertIn("com.example.app", monkey)
+
+    @patch("modules.auxiliary.frida.subprocess.run")
+    @patch("modules.auxiliary.frida.time.time", return_value=100.0)
+    def test_get_pids_does_not_nudge_before_delay(self, mock_time, mock_run):
+        aux = self.make_aux()
+        aux.available = True
+        aux.injection_attempted = True
+        aux.nudge_package = "com.example.app"
+        aux.nudge_at = 150.0
+        aux.get_pids()
+        self.assertFalse(aux.nudged)
+        mock_run.assert_not_called()

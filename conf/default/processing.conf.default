@@ -62,6 +62,11 @@ ram_mmap = no
 [tracee]
 enabled = no
 
+[android_frida]
+enabled = yes
+# Platform specific -- skip on Windows/Linux tasks
+platform = android
+
 [strace]
 enabled = no
 # Toggle specific modules within the StraceAnalysis class
