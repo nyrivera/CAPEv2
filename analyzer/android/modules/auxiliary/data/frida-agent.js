@@ -1,5 +1,5 @@
 📦
-445279 /agent-src.js
+446650 /agent-src.js
 ✄
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
@@ -13645,6 +13645,51 @@ function emitAlreadyResumedActivities() {
     }
   });
 }
+function hookInterestingFileExists() {
+  const File2 = frida_java_bridge_default.use("java.io.File");
+  const original = File2.exists.implementation;
+  File2.exists.implementation = function() {
+    const ret = original ? original.call(this) : this.exists();
+    try {
+      const path = this.getAbsolutePath();
+      if (/su$|magisk|busybox|Superuser|sbin\/su|which/i.test(String(path))) {
+        emit("java.io.File", "exists", [path], ret);
+      }
+    } catch (e) {
+    }
+    return ret;
+  };
+}
+function clickFirstFab() {
+  const names = [
+    "com.google.android.material.floatingactionbutton.FloatingActionButton",
+    "android.support.design.widget.FloatingActionButton"
+  ];
+  let clicked = 0;
+  for (const name of names) {
+    try {
+      frida_java_bridge_default.use(name);
+    } catch (e) {
+      continue;
+    }
+    frida_java_bridge_default.choose(name, {
+      onMatch(instance) {
+        try {
+          instance.performClick();
+          clicked += 1;
+          emit(name, "performClick", [], true);
+        } catch (e) {
+        }
+      },
+      onComplete() {
+      }
+    });
+    if (clicked) {
+      return;
+    }
+  }
+  throw new Error("no FloatingActionButton instance");
+}
 safeHook("libc.so!open", hookNativeOpen);
 frida_java_bridge_default.perform(function() {
   safeHook("Activity.onResume", () => hookMethod("android.app.Activity", "onResume"));
@@ -13658,7 +13703,11 @@ frida_java_bridge_default.perform(function() {
   safeHook("Cipher.doFinal", () => {
     hookMethod("javax.crypto.Cipher", "doFinal", ["[B"]);
   });
+  safeHook("File.exists", hookInterestingFileExists);
   setTimeout(() => {
     frida_java_bridge_default.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
   }, 2e3);
+  setTimeout(() => {
+    frida_java_bridge_default.perform(() => safeHook("FAB.performClick", clickFirstFab));
+  }, 5e3);
 });

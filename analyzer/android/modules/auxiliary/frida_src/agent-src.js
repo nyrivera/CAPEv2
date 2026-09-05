@@ -161,6 +161,54 @@ function emitAlreadyResumedActivities() {
   });
 }
 
+function hookInterestingFileExists() {
+  const File = Java.use("java.io.File");
+  const original = File.exists.implementation;
+  File.exists.implementation = function () {
+    const ret = original ? original.call(this) : this.exists();
+    try {
+      const path = this.getAbsolutePath();
+      if (/su$|magisk|busybox|Superuser|sbin\/su|which/i.test(String(path))) {
+        emit("java.io.File", "exists", [path], ret);
+      }
+    } catch (e) {
+      // never let logging break exists()
+    }
+    return ret;
+  };
+}
+
+function clickFirstFab() {
+  const names = [
+    "com.google.android.material.floatingactionbutton.FloatingActionButton",
+    "android.support.design.widget.FloatingActionButton",
+  ];
+  let clicked = 0;
+  for (const name of names) {
+    try {
+      Java.use(name);
+    } catch (e) {
+      continue;
+    }
+    Java.choose(name, {
+      onMatch(instance) {
+        try {
+          instance.performClick();
+          clicked += 1;
+          emit(name, "performClick", [], true);
+        } catch (e) {
+          // keep looking
+        }
+      },
+      onComplete() {},
+    });
+    if (clicked) {
+      return;
+    }
+  }
+  throw new Error("no FloatingActionButton instance");
+}
+
 safeHook("libc.so!open", hookNativeOpen);
 
 Java.perform(function () {
@@ -175,7 +223,15 @@ Java.perform(function () {
   safeHook("Cipher.doFinal", () => {
     hookMethod("javax.crypto.Cipher", "doFinal", ["[B"]);
   });
+  safeHook("File.exists", hookInterestingFileExists);
+
   setTimeout(() => {
     Java.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
   }, 2000);
+
+  // Sample UIs (RootBeer, many others) only run payload work on a FAB
+  // click. performClick is generic and does not hard-code an APK.
+  setTimeout(() => {
+    Java.perform(() => safeHook("FAB.performClick", clickFirstFab));
+  }, 5000);
 });

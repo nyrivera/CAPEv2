@@ -68,3 +68,10 @@ npm install frida-compile frida-java-bridge
 npx frida-compile analyzer/android/modules/auxiliary/frida_src/agent-src.js \
     -o analyzer/android/modules/auxiliary/data/frida-agent.js
 ```
+
+## Sample UIs that wait for a click
+
+Some APKs (RootBeer sample included) only run their interesting Java on a
+FloatingActionButton click. The compiled agent clicks the first Material/Support
+FAB it can find about five seconds after attach, and logs `File.exists` only
+for paths that look like su/magisk/busybox.
