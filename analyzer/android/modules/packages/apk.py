@@ -12,9 +12,10 @@ class Apk(Package):
     """Android APK analysis package.
 
     Installs the submitted APK, launches its launcher activity, and reports
-    back the resulting app PID for the analyzer's process monitor. No
-    dynamic instrumentation (Frida) is wired in yet -- this package covers
-    install + launch + process lifecycle only.
+    back the resulting app PID for the analyzer's process monitor. Once a
+    PID is known it is handed off to the Frida auxiliary module (see
+    modules/auxiliary/frida.py) for guest-local dynamic instrumentation;
+    that hand-off is best-effort and never blocks or fails this package.
     """
 
     PID_WAIT_TIMEOUT = 30
@@ -32,6 +33,14 @@ class Apk(Package):
         pid = self._wait_for_pid()
         if pid is None:
             raise Exception(f"App {self.package_name} did not appear in the process list within {self.PID_WAIT_TIMEOUT}s")
+
+        try:
+            from modules.auxiliary.frida import notify_target
+
+            notify_target(self.package_name, pid)
+        except Exception as e:
+            log.warning("Could not notify Frida auxiliary of target pid %s: %s", pid, e)
+
         return pid
 
     def _installed_packages(self):
