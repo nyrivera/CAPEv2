@@ -126,10 +126,18 @@ class Frida(Auxiliary):
         if not package_name:
             return
         try:
-            subprocess.run(["input", "keyevent", "KEYCODE_HOME"], timeout=5, check=False)
+            # am/input are shell scripts on Android-x86; execve() on the
+            # bare filename raises Exec format error. Go through sh.
+            subprocess.run(["sh", "-c", "input keyevent KEYCODE_HOME"], timeout=5, check=False)
             time.sleep(1)
             subprocess.run(
-                ["monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"],
+                [
+                    "sh",
+                    "-c",
+                    'am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$1"',
+                    "sh",
+                    package_name,
+                ],
                 timeout=10,
                 check=False,
             )

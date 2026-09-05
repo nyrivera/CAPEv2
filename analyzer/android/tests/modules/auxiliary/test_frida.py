@@ -196,9 +196,11 @@ class TestFridaNudge(FridaTestCase):
         self.assertTrue(aux.nudged)
         self.assertEqual(mock_run.call_count, 2)
         home = mock_run.call_args_list[0].args[0]
-        monkey = mock_run.call_args_list[1].args[0]
-        self.assertEqual(home[:2], ["input", "keyevent"])
-        self.assertIn("com.example.app", monkey)
+        launch = mock_run.call_args_list[1].args[0]
+        self.assertEqual(home[:2], ["sh", "-c"])
+        self.assertIn("KEYCODE_HOME", home[2])
+        self.assertIn("com.example.app", launch)
+        self.assertIn("am start", launch[2])
 
     @patch("modules.auxiliary.frida.subprocess.run")
     @patch("modules.auxiliary.frida.time.time", return_value=100.0)

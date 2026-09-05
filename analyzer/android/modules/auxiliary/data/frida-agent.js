@@ -1,5 +1,5 @@
 📦
-444766 /agent-src.js
+445279 /agent-src.js
 ✄
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
@@ -13574,18 +13574,33 @@ function safeHook(label, fn) {
     send({ ts: Date.now() / 1e3, pid: PID, class: null, method: null, hook_status: `${label}: failed - ${e}` });
   }
 }
+function resolveExport(moduleName, symbol) {
+  try {
+    return Process.getModuleByName(moduleName).getExportByName(symbol);
+  } catch (e) {
+    try {
+      return Module.getGlobalExportByName(symbol);
+    } catch (e2) {
+      return null;
+    }
+  }
+}
 function hookNativeOpen() {
+  const attach = globalThis.Interceptor && globalThis.Interceptor.attach;
+  if (typeof attach !== "function") {
+    throw new Error(`Interceptor.attach is ${typeof attach}`);
+  }
   const candidates = [
     { name: "open", pathArg: 0 },
     { name: "openat", pathArg: 1 }
   ];
   for (const { name, pathArg } of candidates) {
-    const ptr2 = Module.findExportByName("libc.so", name);
+    const ptr2 = resolveExport("libc.so", name);
     if (!ptr2) {
       continue;
     }
     let count = 0;
-    Interceptor.attach(ptr2, {
+    attach.call(globalThis.Interceptor, ptr2, {
       onEnter(args) {
         if (count >= NATIVE_EVENT_CAP) {
           return;
@@ -13643,5 +13658,7 @@ frida_java_bridge_default.perform(function() {
   safeHook("Cipher.doFinal", () => {
     hookMethod("javax.crypto.Cipher", "doFinal", ["[B"]);
   });
-  safeHook("Activity.enumerate", emitAlreadyResumedActivities);
+  setTimeout(() => {
+    frida_java_bridge_default.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+  }, 2e3);
 });

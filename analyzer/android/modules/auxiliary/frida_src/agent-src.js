@@ -87,18 +87,34 @@ function safeHook(label, fn) {
   }
 }
 
+function resolveExport(moduleName, symbol) {
+  try {
+    return Process.getModuleByName(moduleName).getExportByName(symbol);
+  } catch (e) {
+    try {
+      return Module.getGlobalExportByName(symbol);
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+
 function hookNativeOpen() {
+  const attach = globalThis.Interceptor && globalThis.Interceptor.attach;
+  if (typeof attach !== "function") {
+    throw new Error(`Interceptor.attach is ${typeof attach}`);
+  }
   const candidates = [
     { name: "open", pathArg: 0 },
     { name: "openat", pathArg: 1 },
   ];
   for (const { name, pathArg } of candidates) {
-    const ptr = Module.findExportByName("libc.so", name);
+    const ptr = resolveExport("libc.so", name);
     if (!ptr) {
       continue;
     }
     let count = 0;
-    Interceptor.attach(ptr, {
+    attach.call(globalThis.Interceptor, ptr, {
       onEnter(args) {
         if (count >= NATIVE_EVENT_CAP) {
           return;
@@ -159,5 +175,7 @@ Java.perform(function () {
   safeHook("Cipher.doFinal", () => {
     hookMethod("javax.crypto.Cipher", "doFinal", ["[B"]);
   });
-  safeHook("Activity.enumerate", emitAlreadyResumedActivities);
+  setTimeout(() => {
+    Java.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
+  }, 2000);
 });
