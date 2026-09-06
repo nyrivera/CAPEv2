@@ -1,5 +1,5 @@
 📦
-445279 /agent-src.js
+445971 /agent-src.js
 ✄
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
@@ -13645,6 +13645,21 @@ function emitAlreadyResumedActivities() {
     }
   });
 }
+function hookInterestingFileExists() {
+  const File2 = frida_java_bridge_default.use("java.io.File");
+  const original = File2.exists.implementation;
+  File2.exists.implementation = function() {
+    const ret = original ? original.call(this) : this.exists();
+    try {
+      const path = this.getAbsolutePath();
+      if (/su$|magisk|busybox|superuser|sbin\/su|which|genyd|qemud|qemu_pipe|goldfish|vbox|nox|andy|ttvm|android_x86|x86\.prop|drivers|cpuinfo/i.test(String(path))) {
+        emit("java.io.File", "exists", [path], ret);
+      }
+    } catch (e) {
+    }
+    return ret;
+  };
+}
 safeHook("libc.so!open", hookNativeOpen);
 frida_java_bridge_default.perform(function() {
   safeHook("Activity.onResume", () => hookMethod("android.app.Activity", "onResume"));
@@ -13661,4 +13676,7 @@ frida_java_bridge_default.perform(function() {
   setTimeout(() => {
     frida_java_bridge_default.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
   }, 2e3);
+});
+frida_java_bridge_default.perform(function() {
+  safeHook("File.exists", hookInterestingFileExists);
 });

@@ -161,6 +161,23 @@ function emitAlreadyResumedActivities() {
   });
 }
 
+function hookInterestingFileExists() {
+  const File = Java.use("java.io.File");
+  const original = File.exists.implementation;
+  File.exists.implementation = function () {
+    const ret = original ? original.call(this) : this.exists();
+    try {
+      const path = this.getAbsolutePath();
+      if (/su$|magisk|busybox|superuser|sbin\/su|which|genyd|qemud|qemu_pipe|goldfish|vbox|nox|andy|ttvm|android_x86|x86\.prop|drivers|cpuinfo/i.test(String(path))) {
+        emit("java.io.File", "exists", [path], ret);
+      }
+    } catch (e) {
+      // never let logging break exists()
+    }
+    return ret;
+  };
+}
+
 safeHook("libc.so!open", hookNativeOpen);
 
 Java.perform(function () {
@@ -178,4 +195,8 @@ Java.perform(function () {
   setTimeout(() => {
     Java.perform(() => safeHook("Activity.enumerate", emitAlreadyResumedActivities));
   }, 2000);
+});
+
+Java.perform(function () {
+  safeHook("File.exists", hookInterestingFileExists);
 });
